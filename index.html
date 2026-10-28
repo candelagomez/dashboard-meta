@@ -32,7 +32,9 @@ html,body{margin:0;background:var(--color-bg);color:var(--color-fg)}
 <script>
 window.dash = (() => {
   const raw = {}, calcs = {}, res = {}, fns = [];
-  let status = 'loading';
+  const DEFAULTS = {periodo: 'mes_actual', desde: null, hasta: null};
+  let status = 'loading', params = {...DEFAULTS}, updated = null;
+  const run = () => fns.forEach(f => f());
   const dark = matchMedia('(prefers-color-scheme: dark)').matches;
   const colors = dark ? ['#6aa6f0', '#f0a35e', '#5cc28a', '#b48cf0', '#e57fa8', '#5ec4c4', '#d8c35a', '#a0a0a0']
                       : ['#2a6fc9', '#d3792a', '#2e8b57', '#7d55c7', '#c4517f', '#2a9d9d', '#b19a1f', '#7a7a7a'];
@@ -51,12 +53,21 @@ window.dash = (() => {
       return res[id];
     },
     onData(fn) { fns.push(fn); fn(); },
+    params() { return {...params}; },
+    setParams(p) { params = {...params, ...p}; run(); },
+    resetParams() { params = {...DEFAULTS}; run(); },
+    updated() { return updated; },
     _load(files) {
-      Promise.all(Object.entries(files).map(([id, url]) => d3.csv(url + '?v=' + Date.now()).then(rows => { raw[id] = rows; })))
+      Promise.all(Object.entries(files).map(([id, url]) => fetch(url + '?v=' + Date.now()).then(r => {
+        if (!r.ok) throw new Error(r.status);
+        const lm = r.headers.get('last-modified');
+        if (lm && (!updated || new Date(lm) > updated)) updated = new Date(lm);
+        return r.text();
+      }).then(t => { raw[id] = d3.csvParse(t); })))
         .then(() => { status = 'ok'; }, () => { status = 'error'; })
-        .then(() => fns.forEach(f => f()));
+        .then(run);
       let w = innerWidth;
-      addEventListener('resize', () => { if (innerWidth !== w) { w = innerWidth; fns.forEach(f => f()); } });
+      addEventListener('resize', () => { if (innerWidth !== w) { w = innerWidth; run(); } });
     },
   };
   return api;
@@ -69,7 +80,10 @@ window.dash = (() => {
 .mx{display:flex;flex-direction:column;gap:var(--cds-gap-xl);font-family:var(--font-anthropic-sans)}
 .mx-head h1{font-family:var(--font-anthropic-serif);font-weight:400;font-size:var(--cds-font-size-title);margin:0}
 .mx-take{color:var(--color-fg-muted);font-size:var(--cds-font-size-body);margin:var(--cds-gap-xs) 0 0;max-width:60rem}
-.mx-take span{color:var(--color-fg);font-variant-numeric:tabular-nums}
+.mx-take b{color:var(--color-fg);font-weight:500;font-variant-numeric:tabular-nums}
+.mx-filter{display:flex;flex-wrap:wrap;align-items:center;gap:var(--cds-gap-sm);margin-top:var(--cds-gap-md);font-size:var(--cds-font-size-caption)}
+.mx-filter select,.mx-filter input{padding:var(--cds-pad-xs) var(--cds-pad-sm);border:1px solid var(--color-border-line);border-radius:var(--cds-radius);background:var(--color-panel);color:var(--color-fg);font:inherit}
+.mx-filter .rng{color:var(--color-fg-muted);font-variant-numeric:tabular-nums}
 .mx-sec{display:flex;flex-direction:column;gap:var(--cds-gap-md)}
 .mx-sec h2{font-size:var(--cds-font-size-heading);font-weight:var(--cds-font-weight-medium);margin:0}
 .mx-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,12rem),1fr));gap:var(--cds-gap-md)}
@@ -88,7 +102,7 @@ window.dash = (() => {
 .mx-sw{display:inline-block;width:.6rem;height:.6rem;border-radius:2px;margin-right:var(--cds-gap-xs)}
 .mx-tip{position:absolute;top:0;left:0;display:none;background:var(--cds-surface-popover);border:1px solid var(--cds-border);border-radius:var(--cds-radius);box-shadow:var(--cds-shadow-popover);padding:var(--cds-pad-xs) var(--cds-pad-sm);font-size:var(--cds-font-size-caption);pointer-events:none;white-space:nowrap;z-index:2}
 .mx-tip .t{color:var(--cds-text-secondary)}
-.mx-fail{display:flex;align-items:center;justify-content:center;gap:var(--cds-gap-xs);min-height:inherit;color:var(--color-fg-muted);font-size:var(--cds-font-size-caption)}
+.mx-fail,.mx-empty{display:flex;align-items:center;justify-content:center;gap:var(--cds-gap-xs);min-height:inherit;color:var(--color-fg-muted);font-size:var(--cds-font-size-caption)}
 .mx-fail::before{content:"";width:.375rem;height:.375rem;border-radius:50%;background:var(--color-bad)}
 .mx-scroll{max-height:28rem;overflow:auto}
 .mx table{width:100%;border-collapse:collapse;font-size:var(--cds-font-size-caption);font-variant-numeric:tabular-nums}
@@ -97,7 +111,6 @@ window.dash = (() => {
 .mx .num{text-align:right}
 .mx td.tit{max-width:22rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mx-search{width:100%;box-sizing:border-box;margin-bottom:var(--cds-gap-sm);padding:var(--cds-pad-xs) var(--cds-pad-sm);border:1px solid var(--color-border-line);border-radius:var(--cds-radius);background:var(--color-bg);color:var(--color-fg);font:inherit;font-size:var(--cds-font-size-caption)}
-.mx [data-dash-source-state=empty]{color:transparent}
 .mx [data-dash-source-state=refreshing]{opacity:.5;transition:opacity var(--cds-dur-slow)}
 @media (max-width:40rem){.mx .hide-sm{display:none}}
 </style>
@@ -105,38 +118,48 @@ window.dash = (() => {
 <div class="mx">
   <header class="mx-head">
     <h1 id="titulo">Meta: orgánico y pauta</h1>
-    <p class="mx-take">Del <span data-source="kpis" data-field="desde">—</span> al <span data-source="kpis" data-field="hasta">—</span> se invirtieron <span data-source="kpis" data-field="gasto">—</span> en pauta, que generaron <span data-source="kpis" data-field="conversaciones">—</span> conversaciones por mensaje (<span data-source="kpis" data-field="costo_conv">—</span> cada una). En orgánico, <span data-source="kpis" data-field="posts_ig">—</span> publicaciones alcanzaron <span data-source="kpis" data-field="alcance_ig">—</span> cuentas en Instagram.</p>
+    <p class="mx-take" id="mx-take" data-source="pauta ig">—</p>
+    <div class="mx-filter" id="filtro">
+      <select class="mx-periodo" aria-label="Período">
+        <option value="hoy">Hoy</option>
+        <option value="ayer">Ayer</option>
+        <option value="semana_actual">Semana actual</option>
+        <option value="semana_anterior">Semana anterior</option>
+        <option value="mes_actual">Mes actual</option>
+        <option value="mes_anterior">Mes anterior</option>
+        <option value="custom">Personalizado</option>
+      </select>
+      <span class="mx-custom" hidden>
+        <input class="mx-desde" type="date" min="2020-01-01" max="2099-12-31" aria-label="Desde">
+        <input class="mx-hasta" type="date" min="2020-01-01" max="2099-12-31" aria-label="Hasta">
+      </span>
+      <span class="rng" id="mx-rango"></span>
+    </div>
   </header>
 
   <section class="mx-sec" id="pauta">
-    <h2>Pauta · total del período</h2>
-    <div class="mx-tiles" id="mx-tiles-pauta"></div>
+    <h2>Pauta</h2>
+    <div class="mx-tiles" id="mx-tiles-pauta" data-source="pauta"></div>
     <div class="mx-grid">
       <div class="mx-card">
         <h3 id="gasto-diario">Inversión diaria</h3>
         <p class="mx-note">Gasto en USD por día, todas las campañas.</p>
-        <div class="mx-chart" id="ch-gasto" data-source="pauta_dia"></div>
+        <div class="mx-chart" id="ch-gasto" data-source="pauta"></div>
       </div>
       <div class="mx-card">
         <h3 id="conv-diarias">Conversaciones iniciadas por día</h3>
         <p class="mx-note">Conversaciones por mensaje que empezaron desde un anuncio.</p>
-        <div class="mx-chart" id="ch-conv" data-source="pauta_dia"></div>
+        <div class="mx-chart" id="ch-conv" data-source="pauta"></div>
       </div>
     </div>
     <div class="mx-card">
       <h3 id="campanas">Campañas</h3>
-      <p class="mx-note">Ordenadas por inversión. Costo por conversación = gasto ÷ conversaciones; CTR = clics al enlace ÷ impresiones. Estado actual de la campaña.</p>
-      <div class="mx-scroll">
-        <table data-source="pauta_campanas" data-row-key="campaign_id">
+      <p class="mx-note">Campañas con inversión en el período, ordenadas por inversión. Costo por conversación = gasto ÷ conversaciones; CTR = clics al enlace ÷ impresiones. Estado actual de la campaña.</p>
+      <div class="mx-scroll" data-source="pauta">
+        <table>
           <thead><tr>
-            <th data-field="campana">Campaña</th>
-            <th data-field="estado">Estado</th>
-            <th class="num" data-field="gasto">Inversión</th>
-            <th class="num" data-field="conversaciones">Conversaciones</th>
-            <th class="num" data-field="costo_conv">Costo x conv.</th>
-            <th class="num" data-field="clics_enlace">Clics enlace</th>
-            <th class="num hide-sm" data-field="ctr_enlace">CTR</th>
-            <th class="num hide-sm" data-field="impresiones">Impresiones</th>
+            <th>Campaña</th><th>Estado</th><th class="num">Inversión</th><th class="num">Conversaciones</th>
+            <th class="num">Costo x conv.</th><th class="num">Clics enlace</th><th class="num hide-sm">CTR</th><th class="num hide-sm">Impresiones</th>
           </tr></thead>
           <tbody id="tb-campanas"></tbody>
         </table>
@@ -145,30 +168,25 @@ window.dash = (() => {
   </section>
 
   <section class="mx-sec" id="organico">
-    <h2>Orgánico · total del período</h2>
-    <div class="mx-tiles" id="mx-tiles-org"></div>
+    <h2>Orgánico</h2>
+    <div class="mx-tiles" id="mx-tiles-org" data-source="fb ig"></div>
     <div class="mx-card">
-      <h3 id="interacciones-semana">Interacciones orgánicas por semana</h3>
-      <p class="mx-note">Reacciones, comentarios y compartidos (Facebook) e interacciones totales (Instagram) de los posts publicados cada semana (lunes a domingo). La primera y la última semana están incompletas.</p>
-      <div class="mx-legend" data-source="org_semana">
+      <h3 id="interacciones-org">Interacciones orgánicas</h3>
+      <p class="mx-note" id="mx-org-note">Reacciones, comentarios y compartidos (Facebook) e interacciones totales (Instagram) de los posts publicados en cada fecha.</p>
+      <div class="mx-legend" data-source="fb ig">
         <span><i class="mx-sw" id="sw-fb"></i>Facebook</span>
         <span><i class="mx-sw" id="sw-ig"></i>Instagram</span>
       </div>
-      <div class="mx-chart" id="ch-semana" data-source="org_semana"></div>
+      <div class="mx-chart" id="ch-org" data-source="fb ig"></div>
     </div>
     <div class="mx-card">
       <h3 id="publicaciones">Publicaciones</h3>
-      <p class="mx-note">Cada contenido una vez: se unen Facebook e Instagram cuando coinciden fecha y texto. «Con pauta» = el post de Facebook se usó como anuncio.</p>
+      <p class="mx-note">Posts publicados en el período. Cada contenido una vez: se unen Facebook e Instagram cuando coinciden fecha y texto. «Con pauta» = el post de Facebook se usó como anuncio.</p>
       <input class="mx-search" type="search" placeholder="Buscar publicación…" aria-label="Buscar publicación">
-      <div class="mx-scroll">
-        <table data-source="org_posts" data-row-key="id">
+      <div class="mx-scroll" data-source="fb ig">
+        <table>
           <thead><tr>
-            <th data-field="fecha">Fecha</th>
-            <th data-field="titulo">Publicación</th>
-            <th data-field="pauta">Pauta</th>
-            <th class="num" data-field="alcance_ig">Alcance IG</th>
-            <th class="num" data-field="interacciones_ig">Interacc. IG</th>
-            <th class="num" data-field="interacciones_fb">Interacc. FB</th>
+            <th>Fecha</th><th>Publicación</th><th>Pauta</th><th class="num">Alcance IG</th><th class="num">Interacc. IG</th><th class="num">Interacc. FB</th>
           </tr></thead>
           <tbody id="tb-posts"></tbody>
         </table>
@@ -181,111 +199,47 @@ window.dash = (() => {
 (() => {
 const loc = d3.formatLocale({decimal: ',', thousands: '.', grouping: [3], currency: ['US$ ', '']});
 const F = {int: loc.format(',.0f'), usd: loc.format('$,.2f'), usd0: loc.format('$,.0f'), var: loc.format('+.0%'), pct: loc.format('.2%')};
-const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-const largo = s => { const [, m, d] = s.split('-'); return `${+d} de ${MESES[+m - 1]}`; };
+const nz = f => v => (v === null || v === undefined || v === '' || Number.isNaN(v)) ? '—' : f(v);
+const n = v => Number(v) || 0;
+const pad = x => String(x).padStart(2, '0');
+const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const addDays = (s, k) => { const d = new Date(s + 'T12:00:00'); d.setDate(d.getDate() + k); return iso(d); };
+const ndias = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 864e5) + 1;
+const dmy = s => { const [y, m, d] = s.split('-'); return `${d}/${m}/${y}`; };
 const corto = s => { const [, m, d] = s.split('-'); return `${+d}/${+m}`; };
-const nz = (f) => v => (v === null || v === undefined || v === '') ? '—' : f(v);
 const root = document.querySelector('.mx');
 
-dash.calc('kpis', {
-  inputs: ['pauta', 'fb', 'ig'],
-  title: 'Totales del período',
-  description: 'Suma pauta y orgánico del período, de los últimos 7 días y de los 7 anteriores, con su variación.',
-  fn: (pauta, fb, ig) => {
-    const n = v => Number(v) || 0;
-    const hasta = pauta.reduce((m, r) => r.fecha > m ? r.fecha : m, '');
-    const desde = pauta.reduce((m, r) => r.fecha < m ? r.fecha : m, hasta);
-    const back = k => new Date(Date.parse(hasta) - k * 864e5).toISOString().slice(0, 10);
-    const tot = (rows, f, a, b) => rows.filter(r => r.fecha >= a && r.fecha <= b).reduce((s, r) => s + (f ? n(r[f]) : 1), 0);
-    const met = {
-      gasto: [pauta, 'gasto'], conversaciones: [pauta, 'conversaciones'], clics_enlace: [pauta, 'clics_enlace'],
-      alcance_ig: [ig, 'alcance'], interacciones_ig: [ig, 'interacciones'], interacciones_fb: [fb, 'interacciones'],
-      posts_ig: [ig, null], posts_fb: [fb, null],
-    };
-    const out = {desde, hasta};
-    for (const [k, [rows, f]] of Object.entries(met)) {
-      out[k] = tot(rows, f, desde, hasta);
-      out[k + '_7d'] = tot(rows, f, back(6), hasta);
-      out[k + '_prev'] = tot(rows, f, back(13), back(7));
-    }
-    for (const s of ['', '_7d', '_prev']) out['costo_conv' + s] = out['conversaciones' + s] ? out['gasto' + s] / out['conversaciones' + s] : null;
-    for (const k of [...Object.keys(met), 'costo_conv']) out[k + '_var'] = out[k + '_prev'] ? out[k + '_7d'] / out[k + '_prev'] - 1 : null;
-    return [out];
-  },
-});
+// Rango [desde, hasta] del período elegido, en fecha local (Argentina).
+function rango(p) {
+  const t = new Date(), hoy = iso(t), dow = (t.getDay() + 6) % 7;
+  switch (p.periodo) {
+    case 'hoy': return [hoy, hoy];
+    case 'ayer': return [addDays(hoy, -1), addDays(hoy, -1)];
+    case 'semana_actual': return [addDays(hoy, -dow), hoy];
+    case 'semana_anterior': return [addDays(hoy, -dow - 7), addDays(hoy, -dow - 1)];
+    case 'mes_anterior': return [iso(new Date(t.getFullYear(), t.getMonth() - 1, 1)), iso(new Date(t.getFullYear(), t.getMonth(), 0))];
+    case 'custom': if (p.desde && p.hasta) return p.desde <= p.hasta ? [p.desde, p.hasta] : [p.hasta, p.desde];
+    default: return [iso(new Date(t.getFullYear(), t.getMonth(), 1)), hoy];
+  }
+}
+const anterior = ([a, b]) => [addDays(a, -ndias(a, b)), addDays(a, -1)];
+const enRango = (rows, [a, b]) => rows.filter(r => r.fecha >= a && r.fecha <= b);
+const dias = ([a, b]) => { const out = []; for (let d = a; d <= b; d = addDays(d, 1)) out.push(d); return out; };
 
-dash.calc('pauta_dia', {
-  inputs: ['pauta'],
-  title: 'Pauta por día',
-  description: 'Gasto, conversaciones y clics al enlace sumados por día, todas las campañas.',
-  fn: (pauta) => {
-    const n = v => Number(v) || 0;
-    const m = new Map();
-    for (const r of pauta) {
-      const o = m.get(r.fecha) || {fecha: r.fecha, gasto: 0, conversaciones: 0, clics_enlace: 0};
-      o.gasto += n(r.gasto); o.conversaciones += n(r.conversaciones); o.clics_enlace += n(r.clics_enlace);
-      m.set(r.fecha, o);
-    }
-    return [...m.values()].map(o => ({...o, gasto: Math.round(o.gasto * 100) / 100})).sort((a, b) => a.fecha < b.fecha ? -1 : 1);
-  },
+// Filtro
+const sel = root.querySelector('.mx-periodo'), custom = root.querySelector('.mx-custom');
+const desde = root.querySelector('.mx-desde'), hasta = root.querySelector('.mx-hasta');
+sel.addEventListener('change', () => {
+  if (sel.value === 'custom') {
+    const [a, b] = rango(dash.params());
+    dash.setParams({periodo: 'custom', desde: dash.params().desde || a, hasta: dash.params().hasta || b});
+  } else dash.setParams({periodo: sel.value});
 });
-
-dash.calc('pauta_campanas', {
-  inputs: ['pauta'],
-  title: 'Pauta por campaña',
-  description: 'Totales del período por campaña, con costo por conversación y CTR al enlace.',
-  fn: (pauta) => {
-    const n = v => Number(v) || 0;
-    const m = new Map();
-    for (const r of pauta) {
-      const o = m.get(r.campaign_id) || {campaign_id: r.campaign_id, campana: r.campana, estado: r.estado, gasto: 0, conversaciones: 0, clics_enlace: 0, impresiones: 0};
-      o.gasto += n(r.gasto); o.conversaciones += n(r.conversaciones); o.clics_enlace += n(r.clics_enlace); o.impresiones += n(r.impresiones);
-      m.set(r.campaign_id, o);
-    }
-    return [...m.values()].filter(o => o.gasto > 0).map(o => ({
-      ...o, gasto: Math.round(o.gasto * 100) / 100,
-      costo_conv: o.conversaciones ? o.gasto / o.conversaciones : null,
-      ctr_enlace: o.impresiones ? o.clics_enlace / o.impresiones : null,
-    })).sort((a, b) => b.gasto - a.gasto);
-  },
-});
-
-dash.calc('org_semana', {
-  inputs: ['fb', 'ig'],
-  title: 'Orgánico por semana',
-  description: 'Interacciones de los posts de Facebook e Instagram sumadas por semana de publicación (desde el lunes).',
-  fn: (fb, ig) => {
-    const n = v => Number(v) || 0;
-    const lunes = f => { const t = Date.parse(f); const d = new Date(t).getUTCDay(); return new Date(t - ((d + 6) % 7) * 864e5).toISOString().slice(0, 10); };
-    const m = new Map();
-    const add = (rows, red) => rows.forEach(r => {
-      const s = lunes(r.fecha);
-      const o = m.get(s) || {semana: s, facebook: 0, instagram: 0};
-      o[red] += n(r.interacciones);
-      m.set(s, o);
-    });
-    add(fb, 'facebook'); add(ig, 'instagram');
-    return [...m.values()].sort((a, b) => a.semana < b.semana ? -1 : 1);
-  },
-});
-
-dash.calc('org_posts', {
-  inputs: ['fb', 'ig'],
-  title: 'Publicaciones orgánicas',
-  description: 'Une cada post de Instagram con el de Facebook de la misma fecha y texto, ordenado por interacciones totales.',
-  fn: (fb, ig) => {
-    const n = v => Number(v) || 0;
-    const k = r => r.fecha + '|' + r.titulo;
-    const out = new Map();
-    for (const r of ig) out.set(k(r), {id: 'ig_' + r.id, fecha: r.fecha, titulo: r.titulo, pauta: null, alcance_ig: n(r.alcance), interacciones_ig: n(r.interacciones), interacciones_fb: null});
-    for (const r of fb) {
-      const o = out.get(k(r));
-      if (o && o.interacciones_fb === null) { o.interacciones_fb = n(r.interacciones); o.pauta = r.pauta; }
-      else out.set(k(r) + '|fb' + r.id, {id: 'fb_' + r.id, fecha: r.fecha, titulo: r.titulo, pauta: r.pauta, alcance_ig: null, interacciones_ig: null, interacciones_fb: n(r.interacciones)});
-    }
-    return [...out.values()].sort((a, b) => (n(b.interacciones_ig) + n(b.interacciones_fb)) - (n(a.interacciones_ig) + n(a.interacciones_fb)));
-  },
-});
+for (const [el, k] of [[desde, 'desde'], [hasta, 'hasta']]) {
+  el.addEventListener('change', () => { if (el.value && el.validity.valid) dash.setParams({[k]: el.value}); });
+  el.addEventListener('blur', () => { el.value = dash.params()[k] || ''; });
+}
+if (!dash.params().periodo) dash.setParams({periodo: 'mes_actual'});
 
 const TILES = {
   pauta: [
@@ -301,15 +255,22 @@ const TILES = {
     {key: 'posts_ig', label: 'Publicaciones en Instagram', f: F.int, good: 0},
   ],
 };
-const FMT = {desde: largo, hasta: largo, posts_fb: F.int};
-const GOOD = {};
 for (const [box, list] of Object.entries(TILES)) {
-  for (const t of list) { FMT[t.key] = FMT[t.key + '_7d'] = t.f; GOOD[t.key + '_var'] = t.good; }
   root.querySelector('#mx-tiles-' + box).innerHTML = list.map(t =>
     `<div class="mx-card mx-tile"><div class="lbl">${t.label}</div>` +
-    `<div class="val dash-skeleton" data-source="kpis" data-field="${t.key}">—</div>` +
-    `<div class="sub">Últimos 7 días: <span data-source="kpis" data-field="${t.key}_7d">—</span> · ` +
-    `<span data-source="kpis" data-field="${t.key}_var">—</span> vs. 7 previos</div></div>`).join('');
+    `<div class="val dash-skeleton" data-k="${t.key}">—</div>` +
+    `<div class="sub">Período anterior: <span data-k="${t.key}_prev">—</span> · <span data-k="${t.key}_var">—</span></div></div>`).join('');
+}
+
+function totales(pauta, fb, ig, r) {
+  const sum = (rows, f) => enRango(rows, r).reduce((s, x) => s + (f ? n(x[f]) : 1), 0);
+  const o = {
+    gasto: sum(pauta, 'gasto'), conversaciones: sum(pauta, 'conversaciones'), clics_enlace: sum(pauta, 'clics_enlace'),
+    alcance_ig: sum(ig, 'alcance'), interacciones_ig: sum(ig, 'interacciones'), interacciones_fb: sum(fb, 'interacciones'),
+    posts_ig: sum(ig, null), posts_fb: sum(fb, null),
+  };
+  o.costo_conv = o.conversaciones ? o.gasto / o.conversaciones : null;
+  return o;
 }
 
 function fail(el, st) {
@@ -322,18 +283,20 @@ function fail(el, st) {
 function bars(el, st, rows, xKey, xFmt, series, yFmt) {
   el.innerHTML = '';
   if (fail(el, st)) return;
+  if (!rows.length) { d3.select(el).append('div').attr('class', 'mx-empty').text('Sin datos en este período'); return; }
   const W = Math.max(el.clientWidth, 260), H = 220, mb = 22, mt = 8;
   const ymax = d3.max(rows, r => d3.max(series, s => r[s.key])) || 1;
   const y = d3.scaleLinear([0, ymax], [H - mb, mt]).nice(4);
   const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`);
   const ticks = y.ticks(4);
   const probe = svg.append('g');
-  const tw = d3.max(probe.selectAll('text').data(ticks).join('text').text(yFmt).nodes(), n => n.getComputedTextLength()) || 0;
-  const lw = d3.max(probe.selectAll('text').data(rows).join('text').text(r => xFmt(r[xKey])).nodes(), n => n.getComputedTextLength()) || 0;
+  const tw = d3.max(probe.selectAll('text').data(ticks).join('text').text(yFmt).nodes(), nd => nd.getComputedTextLength()) || 0;
+  const lw = d3.max(probe.selectAll('text').data(rows).join('text').text(r => xFmt(r[xKey])).nodes(), nd => nd.getComputedTextLength()) || 0;
   probe.remove();
   const ml = tw + 10;
   const x = d3.scaleBand(rows.map(r => r[xKey]), [ml, W - 2]).paddingInner(.25).paddingOuter(.1);
-  const xi = d3.scaleBand(series.map(s => s.key), [0, x.bandwidth()]).padding(series.length > 1 ? .1 : 0);
+  const xi = d3.scaleBand(series.map(s => s.key), [0, Math.min(x.bandwidth(), 32 * series.length)]).padding(series.length > 1 ? .1 : 0);
+  const off = (x.bandwidth() - xi.range()[1]) / 2;
   const every = Math.max(1, Math.ceil((lw + 8) / x.step()));
   svg.append('g').selectAll('line').data(ticks).join('line')
     .attr('x1', ml).attr('x2', W - 2).attr('y1', y).attr('y2', y)
@@ -342,15 +305,14 @@ function bars(el, st, rows, xKey, xFmt, series, yFmt) {
     .attr('x', ml - 6).attr('y', y).attr('dy', '0.32em').attr('text-anchor', 'end').text(yFmt);
   svg.append('g').selectAll('text').data(rows.filter((r, i) => i % every === 0)).join('text')
     .attr('x', r => x(r[xKey]) + x.bandwidth() / 2).attr('y', H - 4).attr('text-anchor', 'middle').text(r => xFmt(r[xKey]));
-  const g = svg.append('g').selectAll('g').data(rows).join('g').attr('transform', r => `translate(${x(r[xKey])},0)`);
+  const g = svg.append('g').selectAll('g').data(rows).join('g').attr('transform', r => `translate(${x(r[xKey]) + off},0)`);
   g.selectAll('rect').data(r => series.map(s => ({s, v: r[s.key]}))).join('rect')
     .attr('x', d => xi(d.s.key)).attr('width', xi.bandwidth())
     .attr('y', d => y(d.v)).attr('height', d => Math.max(0, y(0) - y(d.v)))
     .attr('rx', Math.min(4, xi.bandwidth() / 2)).attr('fill', d => d.s.color);
   const tip = d3.select(el).append('div').attr('class', 'mx-tip');
-  g.append('rect').attr('width', x.step()).attr('x', -(x.step() - x.bandwidth()) / 2).attr('y', 0).attr('height', H - mb).attr('fill', 'transparent')
-    .on('mouseenter', function (ev, r) {
-      d3.select(this.parentNode).selectAll('rect').attr('opacity', null);
+  g.append('rect').attr('width', x.step()).attr('x', -off - (x.step() - x.bandwidth()) / 2).attr('y', 0).attr('height', H - mb).attr('fill', 'transparent')
+    .on('mouseenter', (ev, r) => {
       g.filter(o => o !== r).selectAll('rect').attr('opacity', .45);
       tip.html('').style('display', 'block');
       tip.append('div').attr('class', 't').text(xFmt(r[xKey]));
@@ -359,8 +321,8 @@ function bars(el, st, rows, xKey, xFmt, series, yFmt) {
         if (series.length > 1) line.append('i').attr('class', 'mx-sw').style('background', s.color);
         line.append('span').text(`${s.name}: ${yFmt(r[s.key])}`);
       }
-      const tw2 = tip.node().offsetWidth;
-      const cx = x(r[xKey]) / W * el.clientWidth + x.bandwidth() / W * el.clientWidth / 2;
+      const k = el.clientWidth / W, tw2 = tip.node().offsetWidth;
+      const cx = (x(r[xKey]) + x.bandwidth() / 2) * k;
       tip.style('left', Math.min(Math.max(0, cx - tw2 / 2), el.clientWidth - tw2) + 'px').style('top', '0px');
     })
     .on('mouseleave', () => { tip.style('display', 'none'); g.selectAll('rect').attr('opacity', null); });
@@ -369,8 +331,8 @@ function bars(el, st, rows, xKey, xFmt, series, yFmt) {
 function table(tbody, st, rows, cols) {
   tbody.innerHTML = '';
   if (st !== 'ok') return;
-  const tr = d3.select(tbody).selectAll('tr').data(rows).join('tr').attr('data-key', r => r._key);
-  tr.selectAll('td').data(r => cols.map(c => ({c, v: r[c.k]}))).join('td')
+  d3.select(tbody).selectAll('tr').data(rows).join('tr')
+    .selectAll('td').data(r => cols.map(c => ({c, v: r[c.k]}))).join('td')
     .attr('class', d => d.c.cls || null).attr('title', d => d.c.k === 'titulo' ? d.v : null)
     .text(d => d.c.f ? d.c.f(d.v) : (d.v ?? '—'));
 }
@@ -382,42 +344,93 @@ search.addEventListener('input', () => {
 });
 
 dash.onData(() => {
-  const k = dash.data('kpis');
-  const row = k.status === 'ok' ? k.data[0] : null;
-  root.querySelectorAll('[data-source="kpis"]').forEach(el => {
-    const f = el.dataset.field;
-    el.classList.toggle('dash-skeleton', k.status === 'loading' && el.classList.contains('val'));
+  const p = dash.params();
+  const r = rango(p), rp = anterior(r);
+  sel.value = p.periodo || 'mes_actual';
+  custom.hidden = sel.value !== 'custom';
+  if (document.activeElement !== desde) desde.value = p.desde || '';
+  if (document.activeElement !== hasta) hasta.value = p.hasta || '';
+  root.querySelector('#mx-rango').textContent = `${dmy(r[0])} – ${dmy(r[1])}`;
+
+  const P = dash.data('pauta'), FB = dash.data('fb'), IG = dash.data('ig');
+  const st = [P, FB, IG].find(d => d.status !== 'ok')?.status || 'ok';
+  const pauta = P.data || [], fb = FB.data || [], ig = IG.data || [];
+  const inicio = d3.min([...pauta, ...ig], x => x.fecha) || r[0];
+
+  // Tarjetas y resumen
+  const cur = st === 'ok' ? totales(pauta, fb, ig, r) : null;
+  const prev = st === 'ok' && rp[0] >= inicio ? totales(pauta, fb, ig, rp) : null;
+  const good = {}, fmt = {};
+  for (const t of [...TILES.pauta, ...TILES.org]) { good[t.key] = t.good; fmt[t.key] = t.f; }
+  root.querySelectorAll('[data-k]').forEach(el => {
+    const k = el.dataset.k, base = k.replace(/_(prev|var)$/, '');
+    el.classList.toggle('dash-skeleton', st === 'loading' && el.classList.contains('val'));
     el.classList.remove('mx-good', 'mx-bad');
-    const v = row ? row[f] : null;
-    if (v === null || v === undefined) { el.textContent = '—'; return; }
-    if (f.endsWith('_var')) {
+    if (!cur) { el.textContent = '—'; return; }
+    if (k.endsWith('_var')) {
+      const a = cur[base], b = prev && prev[base];
+      if (!b || a === null) { el.textContent = '—'; return; }
+      const v = a / b - 1;
       el.textContent = F.var(v);
-      const g = GOOD[f] * Math.sign(v);
-      if (g) el.classList.add(g > 0 ? 'mx-good' : 'mx-bad');
-    } else el.textContent = (FMT[f] || F.int)(v);
+      const s = good[base] * Math.sign(v);
+      if (s) el.classList.add(s > 0 ? 'mx-good' : 'mx-bad');
+    } else if (k.endsWith('_prev')) el.textContent = prev ? nz(fmt[base])(prev[base]) : '—';
+    else el.textContent = nz(fmt[base])(cur[base]);
   });
+  const take = root.querySelector('#mx-take');
+  take.replaceChildren();
+  if (cur) {
+    const parts = [`Del ${dmy(r[0])} al ${dmy(r[1])} se invirtieron `, [F.usd0(cur.gasto)], ' en pauta, que generaron ', [F.int(cur.conversaciones)],
+      ' conversaciones por mensaje', cur.costo_conv === null ? '' : ' (', cur.costo_conv === null ? '' : [F.usd(cur.costo_conv)], cur.costo_conv === null ? '' : ' cada una)',
+      '. En orgánico, ', [F.int(cur.posts_ig)], ' publicaciones alcanzaron ', [F.int(cur.alcance_ig)], ' cuentas en Instagram.'];
+    for (const x of parts) take.append(Array.isArray(x) ? Object.assign(document.createElement('b'), {textContent: x[0]}) : x);
+  } else take.textContent = st === 'loading' ? '—' : '';
 
+  // Pauta por día
   const c = dash.colors;
-  const pd = dash.data('pauta_dia');
-  bars(root.querySelector('#ch-gasto'), pd.status, pd.data || [], 'fecha', corto, [{key: 'gasto', name: 'Inversión', color: c[0]}], F.usd0);
-  bars(root.querySelector('#ch-conv'), pd.status, pd.data || [], 'fecha', corto, [{key: 'conversaciones', name: 'Conversaciones', color: c[1]}], F.int);
+  const porDia = d3.rollup(enRango(pauta, r), v => ({gasto: d3.sum(v, x => n(x.gasto)), conversaciones: d3.sum(v, x => n(x.conversaciones))}), x => x.fecha);
+  const diasPauta = dias([d3.max([r[0], inicio]), r[1]]).map(d => ({fecha: d, ...(porDia.get(d) || {gasto: 0, conversaciones: 0})}));
+  bars(root.querySelector('#ch-gasto'), st, diasPauta, 'fecha', corto, [{key: 'gasto', name: 'Inversión', color: c[0]}], F.usd0);
+  bars(root.querySelector('#ch-conv'), st, diasPauta, 'fecha', corto, [{key: 'conversaciones', name: 'Conversaciones', color: c[1]}], F.int);
 
-  root.querySelector('#sw-fb').style.background = c[2];
-  root.querySelector('#sw-ig').style.background = c[3];
-  const os = dash.data('org_semana');
-  bars(root.querySelector('#ch-semana'), os.status, os.data || [], 'semana', s => 'Sem. ' + corto(s),
-    [{key: 'facebook', name: 'Facebook', color: c[2]}, {key: 'instagram', name: 'Instagram', color: c[3]}], F.int);
-
-  const pc = dash.data('pauta_campanas');
-  table(root.querySelector('#tb-campanas'), pc.status, (pc.data || []).map(r => ({...r, _key: r.campaign_id})), [
+  // Campañas
+  const camp = d3.rollups(enRango(pauta, r), v => {
+    const o = {campana: v[0].campana, estado: v[0].estado, gasto: d3.sum(v, x => n(x.gasto)), conversaciones: d3.sum(v, x => n(x.conversaciones)),
+      clics_enlace: d3.sum(v, x => n(x.clics_enlace)), impresiones: d3.sum(v, x => n(x.impresiones))};
+    o.costo_conv = o.conversaciones ? o.gasto / o.conversaciones : null;
+    o.ctr_enlace = o.impresiones ? o.clics_enlace / o.impresiones : null;
+    return o;
+  }, x => x.campaign_id).map(([, o]) => o).filter(o => o.gasto > 0).sort((a, b) => b.gasto - a.gasto);
+  table(root.querySelector('#tb-campanas'), st, camp, [
     {k: 'campana'}, {k: 'estado'},
     {k: 'gasto', f: nz(F.usd), cls: 'num'}, {k: 'conversaciones', f: nz(F.int), cls: 'num'},
     {k: 'costo_conv', f: nz(F.usd), cls: 'num'}, {k: 'clics_enlace', f: nz(F.int), cls: 'num'},
     {k: 'ctr_enlace', f: nz(F.pct), cls: 'num hide-sm'}, {k: 'impresiones', f: nz(F.int), cls: 'num hide-sm'},
   ]);
 
-  const op = dash.data('org_posts');
-  table(root.querySelector('#tb-posts'), op.status, (op.data || []).map(r => ({...r, _key: r.id})), [
+  // Orgánico por día (hasta 31 días) o por semana
+  root.querySelector('#sw-fb').style.background = c[2];
+  root.querySelector('#sw-ig').style.background = c[3];
+  const semanal = ndias(...r) > 31;
+  const lunes = f => { const d = new Date(f + 'T12:00:00'); return addDays(f, -((d.getDay() + 6) % 7)); };
+  const clave = semanal ? lunes : f => f;
+  const org = new Map(dias(r).map(clave).map(k => [k, {k, facebook: 0, instagram: 0}]));
+  for (const [rows, red] of [[fb, 'facebook'], [ig, 'instagram']]) for (const x of enRango(rows, r)) org.get(clave(x.fecha))[red] += n(x.interacciones);
+  root.querySelector('#mx-org-note').textContent = `Reacciones, comentarios y compartidos (Facebook) e interacciones totales (Instagram) de los posts publicados ${semanal ? 'cada semana (desde el lunes)' : 'cada día'}.`;
+  bars(root.querySelector('#ch-org'), st, [...org.values()], 'k', semanal ? s => 'Sem. ' + corto(s) : corto,
+    [{key: 'facebook', name: 'Facebook', color: c[2]}, {key: 'instagram', name: 'Instagram', color: c[3]}], F.int);
+
+  // Publicaciones
+  const posts = new Map();
+  const kp = x => x.fecha + '|' + x.titulo;
+  for (const x of enRango(ig, r)) posts.set(kp(x), {fecha: x.fecha, titulo: x.titulo, pauta: null, alcance_ig: n(x.alcance), interacciones_ig: n(x.interacciones), interacciones_fb: null});
+  for (const x of enRango(fb, r)) {
+    const o = posts.get(kp(x));
+    if (o && o.interacciones_fb === null) { o.interacciones_fb = n(x.interacciones); o.pauta = x.pauta; }
+    else posts.set(kp(x) + '|' + x.id, {fecha: x.fecha, titulo: x.titulo, pauta: x.pauta, alcance_ig: null, interacciones_ig: null, interacciones_fb: n(x.interacciones)});
+  }
+  const lista = [...posts.values()].sort((a, b) => (n(b.interacciones_ig) + n(b.interacciones_fb)) - (n(a.interacciones_ig) + n(a.interacciones_fb)));
+  table(root.querySelector('#tb-posts'), st, lista, [
     {k: 'fecha', f: corto}, {k: 'titulo', cls: 'tit'}, {k: 'pauta'},
     {k: 'alcance_ig', f: nz(F.int), cls: 'num'}, {k: 'interacciones_ig', f: nz(F.int), cls: 'num'}, {k: 'interacciones_fb', f: nz(F.int), cls: 'num'},
   ]);
@@ -426,8 +439,14 @@ dash.onData(() => {
 })();
 </script>
 
-<p class="mx-foot">Datos de la API de Meta (pauta de la cuenta publicitaria y posts de Facebook e Instagram) desde el 1/10/2026. Se actualiza todos los días.</p>
+<p class="mx-foot">Datos de la API de Meta (pauta de la cuenta publicitaria y posts de Facebook e Instagram). Se actualiza todos los días a las 8:30, 12:30 y 16:30. <span id="mx-upd"></span></p>
 </div>
-<script>dash._load({pauta: 'data/pauta_diaria.csv', fb: 'data/organico_facebook.csv', ig: 'data/organico_instagram.csv'});</script>
+<script>
+dash.onData(() => {
+  const u = dash.updated();
+  document.querySelector('#mx-upd').textContent = u ? 'Última actualización: ' + u.toLocaleString('es-AR', {dateStyle: 'short', timeStyle: 'short'}) : '';
+});
+dash._load({pauta: 'data/pauta_diaria.csv', fb: 'data/organico_facebook.csv', ig: 'data/organico_instagram.csv'});
+</script>
 </body>
 </html>
