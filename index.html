@@ -304,7 +304,7 @@ function bars(el, st, rows, xKey, xFmt, series, yFmt) {
   svg.append('g').selectAll('text').data(ticks).join('text')
     .attr('x', ml - 6).attr('y', y).attr('dy', '0.32em').attr('text-anchor', 'end').text(yFmt);
   svg.append('g').selectAll('text').data(rows.filter((r, i) => i % every === 0)).join('text')
-    .attr('x', r => x(r[xKey]) + x.bandwidth() / 2).attr('y', H - 4).attr('text-anchor', 'middle').text(r => xFmt(r[xKey]));
+    .attr('x', r => Math.min(Math.max(x(r[xKey]) + off + xi.range()[1] / 2, lw / 2 + 1), W - lw / 2 - 1)).attr('y', H - 4).attr('text-anchor', 'middle').text(r => xFmt(r[xKey]));
   const g = svg.append('g').selectAll('g').data(rows).join('g').attr('transform', r => `translate(${x(r[xKey]) + off},0)`);
   g.selectAll('rect').data(r => series.map(s => ({s, v: r[s.key]}))).join('rect')
     .attr('x', d => xi(d.s.key)).attr('width', xi.bandwidth())
