@@ -45,7 +45,7 @@ id,fecha,titulo,pauta,reacciones,comentarios,compartidos,interacciones
 1033210416817813_1480218490915785,2026-11-14,📢 ¡Tenemos una noticia bárbara!,Orgánico,0,0,0,0
 1033210416817813_1480140987590202,2026-11-14,🥩 ¿Tenés una carnicería? No hace falta que tengas una batea gigante 🥩,Orgánico,0,0,0,0
 1033210416817813_1479904484280519,2026-11-14,🔍 Vitrina Piky en detalle 🔍,Orgánico,0,0,0,0
-1033210416817813_1479221137682187,2026-11-13,"📢 Si tenés un almacén, granja o fiambrería, ¡escuchá esto! 👇",Con pauta,131,16,3,150
+1033210416817813_1479221137682187,2026-11-13,"📢 Si tenés un almacén, granja o fiambrería, ¡escuchá esto! 👇",Con pauta,133,17,3,153
 1033210416817813_1479153534355614,2026-11-13,📢 ¡Seguinos para no perderte nada! 📢,Orgánico,2,0,0,2
 1033210416817813_1479068757697425,2026-11-13,🤔 ¿Cómo hace un comerciante para llevarse una heladera sin pagarla toda de una?,Orgánico,1,2,0,3
 1033210416817813_1478832814387686,2026-11-13,"🍗 Si tenés una pollería en Gran Buenos Aires o CABA, esto que te vamos a mostrar es ideal para vos 👇",Orgánico,1,0,0,1
@@ -109,7 +109,7 @@ id,fecha,titulo,pauta,reacciones,comentarios,compartidos,interacciones
 1033210416817813_1463823329221968,2026-10-29,"👀 ¡Vení, vení! Te voy a mostrar una batea para tu negocio que te va a encantar 👇",Orgánico,1,0,0,1
 1033210416817813_1463719042565730,2026-10-29,🎮 Jugando con los vendedores parte 4,Orgánico,1,0,0,1
 1033210416817813_1463644449239856,2026-10-29,💡 Tips para comercios – Parte 10,Orgánico,1,0,0,1
-1033210416817813_1463460019258299,2026-10-29,🚫 ¡No compres esta heladera!,Orgánico,3,0,0,3
+1033210416817813_1463460019258299,2026-10-29,🚫 ¡No compres esta heladera!,Con pauta,7,0,0,7
 1033210416817813_1462830825987885,2026-10-28,🏪 ¿Tenés un almacén? Esto es para vos 👇,Orgánico,4,3,0,7
 1033210416817813_1462724522665182,2026-10-28,🔥 Jugando con los vendedores – Parte 3 🔥,Orgánico,1,0,0,1
 1033210416817813_1462604109343890,2026-10-28,🧊 Comercio de Francisca ya tiene su nueva heladera exhibidora 🙌,Orgánico,0,0,0,0
@@ -122,7 +122,7 @@ id,fecha,titulo,pauta,reacciones,comentarios,compartidos,interacciones
 1033210416817813_1461482406122727,2026-10-27,"👀 Si tenés un comercio, te mostramos 3 productos por menos de $6.000 por día 👇",Orgánico,2,0,0,2
 1033210416817813_1459994732938161,2026-10-25,🤔 ¿Por qué conviene comprar en cuotas diarias y no con la plata de la caja?,Orgánico,1,0,0,1
 1033210416817813_1457136946557273,2026-10-22,🤔 ¿Cuáles son los requisitos para llevarte una heladera como esta?,Orgánico,2,0,1,3
-1033210416817813_1457073183230316,2026-10-22,💥 ¡Con $14.000 diarios esta vitrina puede ser tuya!,Con pauta,825,114,21,960
+1033210416817813_1457073183230316,2026-10-22,💥 ¡Con $14.000 diarios esta vitrina puede ser tuya!,Con pauta,830,115,21,966
 1033210416817813_1457070609897240,2026-10-22,🎮 Jugando con los vendedores – Parte 2,Orgánico,0,0,0,0
 1033210416817813_1456196743317960,2026-10-21,✨ ¿Querés mejorar la presentación de tu comercio?,Orgánico,1,0,0,1
 1033210416817813_1455288150075486,2026-10-20,"⚠️ ¡Vení! Si tenés un kiosco o un almacén, quiero mostrarte algo 👇",Con pauta,178,23,0,201
@@ -197,8 +197,8 @@ id,fecha,titulo,pauta,reacciones,comentarios,compartidos,interacciones
 1033210416817813_1418204637117171,2026-09-09,💡 Una heladera exhibidora por $7.000 por día. Hagamos números de comerciante.,Con pauta,69,42,2,113
 1033210416817813_1418170180453950,2026-09-09,,Orgánico,2,0,0,2
 1033210416817813_1418168207120814,2026-09-09,,Orgánico,3,1,0,4
-1033210416817813_1418161590454809,2026-09-09,,Orgánico,3,0,0,3
-1033210416817813_1418157363788565,2026-09-09,,Orgánico,1,0,0,1
+1033210416817813_1418161590454809,2026-09-09,,Orgánico,3,0,1,4
+1033210416817813_1418157363788565,2026-09-09,,Orgánico,1,0,1,2
 1033210416817813_1418152547122380,2026-09-09,,Orgánico,1,0,0,1
 1033210416817813_1418150570455911,2026-09-09,"Con la Batea Ágata Vidrio Recto de 1,50 m mantenés tus productos a la temperatura ideal y, al mismo tiempo, los mostrás como se merecen.",Orgánico,3,0,0,3
 1033210416817813_1418019300469038,2026-09-09,"🥩 Si tenés carnicería, fiambrería o almacén, la exhibición también vende.",Orgánico,13,0,0,13
